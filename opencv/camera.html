@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>温度計キャリブレーション</title>
+<style>
+  body { font-family:sans-serif; margin:20px; background:#1a1a2e; color:#eee; }
+  h1 { text-align:center; color:#e94560; }
+  .box { display:flex; gap:30px; flex-wrap:wrap; justify-content:center; }
+  .panel { background:#16213e; border-radius:12px; padding:20px; max-width:640px; }
+  .panel img { max-width:100%; cursor:crosshair; border-radius:8px; }
+  .info { color:#aaa; font-size:0.9em; margin-top:10px; }
+  .cards { display:flex; gap:15px; justify-content:center; margin-top:15px; }
+  .card { background:#0f3460; padding:15px 25px; border-radius:8px; text-align:center; min-width:120px; }
+  .card .v { font-size:2.5em; font-weight:bold; }
+  .card .l { font-size:0.8em; color:#aaa; }
+  button { background:#e94560; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; margin:4px; }
+  button:hover { background:#ff6b81; }
+</style>
+</head>
+<body>
+<h1>温度計キャリブレーション</h1>
+
+<div class="box">
+  <div class="panel">
+    <img id="cam" src="/api/camera" width="640">
+    <div class="info" id="msg">画像をクリック: 1回目=下(-30℃) 2回目=上(55℃)</div>
+  </div>
+
+  <div style="max-width:350px">
+    <div class="panel">
+      <div class="cards">
+        <div class="card"><div class="l">DHT22</div><div class="v" style="color:#e94560" id="dht-temp">--</div><div class="l">℃</div></div>
+        <div class="card"><div class="l">OpenCV</div><div class="v" style="color:#ffa502" id="cv-temp">--</div><div class="l">℃</div></div>
+      </div>
+      <div style="text-align:center; margin-top:15px;">
+        <button onclick="resetCalib()">リセット</button>
+        <button onclick="saveCalib()">保存</button>
+      </div>
+      <div class="info" id="calib-info">未設定</div>
+    </div>
+    <div class="panel" style="margin-top:15px;">
+      <div class="info">
+        距離: <span id="dist">--</span> cm<br>
+        状態: <span id="status">待機中</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var pts = [];
+var saved = false;
+var BTM = -30, TOP = 55;
+
+document.getElementById('cam').onclick = function(e) {
+  if (saved) return;
+  var y = Math.round(e.clientY - this.getBoundingClientRect().top);
+  pts.push(y);
+  if (pts.length === 1) {
+    document.getElementById('msg').textContent = '1回目(下) OK: Y=' + y + ' / 2回目: 上をクリック';
+  } else if (pts.length === 2) {
+    document.getElementById('msg').textContent = '2点設定完了。「保存」を押してください';
+    updateInfo();
+  }
+};
+
+function updateInfo() {
+  if (pts.length >= 2) {
+    var b = Math.max(pts[0], pts[1]);
+    var t = Math.min(pts[0], pts[1]);
+    document.getElementById('calib-info').innerHTML = '最低 Y=' + b + ' ('+BTM+'℃)<br>最高 Y=' + t + ' ('+TOP+'℃)';
+  }
+}
+
+function resetCalib() {
+  pts = []; saved = false;
+  document.getElementById('msg').textContent = '画像をクリック: 1回目=下(-30℃) 2回目=上(55℃)';
+  document.getElementById('calib-info').textContent = '未設定';
+  document.getElementById('cv-temp').textContent = '--';
+}
+
+async function saveCalib() {
+  if (pts.length < 2) { alert('上下2点クリックしてから保存'); return; }
+  var b = Math.max(pts[0], pts[1]);
+  var t = Math.min(pts[0], pts[1]);
+  await fetch('/api/calibrate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({y_btm:b, y_top:t, temp_btm:BTM, temp_top:TOP})
+  });
+  saved = true;
+  document.getElementById('calib-info').innerHTML = '保存完了: Y=' + b + '〜' + t;
+  document.getElementById('msg').textContent = 'キャリブレーションOK。OpenCV計測中...';
+  document.getElementById('status').textContent = 'キャリブレーションOK';
+}
+
+async function update() {
+  var img = new Image();
+  img.onload = function() {
+    document.getElementById('cam').src = img.src;
+  };
+  img.src = '/api/camera?' + Date.now();
+  try {
+    var r = await fetch('/api/opencv_temp').then(function(r){ return r.json(); });
+    if (r.error) {
+      document.getElementById('status').textContent = r.error;
+    } else if (r.temp !== null) {
+      document.getElementById('cv-temp').textContent = r.temp;
+      document.getElementById('status').textContent = '稼働中';
+    }
+  } catch(e) { document.getElementById('status').textContent = '通信エラー'; }
+}
+
+setInterval(update, 2000);
+</script>
+</body>
+</html>

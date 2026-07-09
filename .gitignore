@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# Database
+*.db
+
+# Exports
+*.csv
+
+# Images
+*.jpg
+*.png
+
+# Build
+bin/
+*.o
+sensor/dht22
+sensor/hc_sr04
+mqtt/mqtt_pub
+mqtt/mqtt_sub
+database/dht22_logger
+
+# Dependencies
+WiringPi/
+
+# Analytics output
+analytics/output/
+
+# Dev files
+AI_RULES.md
+_later/
+
+# IDE
+.vscode/

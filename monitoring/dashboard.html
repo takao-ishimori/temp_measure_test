@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>temp_measure ダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: sans-serif; margin:20px; background:#1a1a2e; color:#eee; }
+  h1 { text-align:center; color:#e94560; }
+  .tabs { display:flex; gap:0; justify-content:center; margin:20px 0; border-bottom:2px solid #333; }
+  .tab { padding:10px 30px; cursor:pointer; color:#888; border-bottom:2px solid transparent; margin-bottom:-2px; }
+  .tab.active { color:#e94560; border-bottom-color:#e94560; }
+  .tab:hover { color:#fff; }
+  .tab-body { display:none; }
+  .tab-body.active { display:block; }
+  .stats { display:flex; gap:20px; justify-content:center; margin:20px 0; flex-wrap:wrap; }
+  .card { background:#16213e; padding:20px 30px; border-radius:12px; text-align:center; min-width:140px; }
+  .card .value { font-size:2em; font-weight:bold; margin:5px 0; }
+  .card .label { font-size:0.9em; color:#aaa; }
+  .temp .value { color:#e94560; } .hum .value { color:#0f3460; }
+  .cpu .value { color:#ffa502; } .mem .value { color:#1e90ff; }
+  .disk .value { color:#7bed9f; } .rpitemp .value { color:#ff6348; }
+  .chart-container { background:#16213e; border-radius:12px; padding:20px; margin:20px auto; max-width:1100px; }
+  #status { text-align:center; color:#888; font-size:0.8em; }
+  .db-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:15px 0; }
+  .db-row input { padding:6px 10px; border-radius:6px; border:1px solid #333; background:#0a0a1a; color:#eee; font-size:0.9em; }
+  .db-row button { background:#e94560; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; }
+  .db-row button.danger { background:#c0392b; }
+  .db-row button:hover { opacity:0.8; }
+  .db-table { width:100%; border-collapse:collapse; margin-top:15px; font-size:0.85em; }
+  .db-table th { background:#16213e; padding:8px; text-align:left; border-bottom:2px solid #333; }
+  .db-table td { padding:6px 8px; border-bottom:1px solid #222; }
+  .db-table tr:hover { background:#1a1a3e; }
+  .info-box { background:#16213e; border-radius:12px; padding:20px; max-width:1100px; margin:20px auto; }
+  .info-box p { margin:8px 0; line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>temp_measure ダッシュボード</h1>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('monitor')">監視</div>
+  <div class="tab" onclick="switchTab('stats')">統計</div>
+  <div class="tab" onclick="switchTab('db')">DB管理</div>
+</div>
+
+<!-- TAB 1: 監視 -->
+<div id="tab-monitor" class="tab-body active">
+<div class="stats">
+  <div class="card temp"><div class="label">温度</div><div class="value" id="cur-temp">--</div><div class="label">C</div></div>
+  <div class="card hum"><div class="label">湿度</div><div class="value" id="cur-hum">--</div><div class="label">%</div></div>
+  <div class="card"><div class="label">データ件数</div><div class="value" id="count">--</div><div class="label">件</div></div>
+  <div class="card"><div class="label">最高温度</div><div class="value" id="max-temp">--</div><div class="label">C</div></div>
+  <div class="card"><div class="label">最低温度</div><div class="value" id="min-temp">--</div><div class="label">C</div></div>
+</div>
+<div class="chart-container"><canvas id="tempChart"></canvas></div>
+<div class="chart-container"><canvas id="humChart"></canvas></div>
+<div class="stats">
+  <div class="card cpu"><div class="label">CPU</div><div class="value" id="sys-cpu">--</div><div class="label">%</div></div>
+  <div class="card mem"><div class="label">メモリ</div><div class="value" id="sys-mem">--</div><div class="label">%</div></div>
+  <div class="card disk"><div class="label">ディスク</div><div class="value" id="sys-disk">--</div><div class="label">%</div></div>
+  <div class="card rpitemp"><div class="label">CPU温度</div><div class="value" id="sys-temp">--</div><div class="label">C</div></div>
+  <div class="card"><div class="label">負荷平均</div><div class="value" id="sys-load">--</div></div>
+  <div class="card"><div class="label">稼働時間</div><div class="value" id="sys-uptime" style="font-size:1.2em">--</div></div>
+</div>
+</div>
+
+<!-- TAB 2: 統計 -->
+<div id="tab-stats" class="tab-body">
+<div class="info-box">
+  <p>データ件数: <b id="s-count">--</b> 件</p>
+  <p>温度 平均: <b id="s-avg-temp">--</b> C / 最小: <b id="s-min-temp">--</b> C / 最大: <b id="s-max-temp">--</b> C</p>
+  <p>湿度 平均: <b id="s-avg-hum">--</b> % / 最小: <b id="s-min-hum">--</b> % / 最大: <b id="s-max-hum">--</b> %</p>
+</div>
+<div class="chart-container"><canvas id="histChart"></canvas></div>
+<div class="chart-container"><canvas id="scatterChart"></canvas></div>
+<p style="text-align:center;color:#888;">※ CSV出力・詳細分析は analytics/stats_analysis.py を実行</p>
+</div>
+
+<!-- TAB 3: DB管理 -->
+<div id="tab-db" class="tab-body">
+<div class="info-box">
+  <h3>期間指定でデータ表示・削除</h3>
+  <div class="db-row">
+    <label>開始: <input type="datetime-local" id="db-from"></label>
+    <label>終了: <input type="datetime-local" id="db-to"></label>
+    <button onclick="queryData()">表示</button>
+    <button class="danger" onclick="deleteData()">期間内を削除</button>
+  </div>
+  <div id="db-result"></div>
+</div>
+</div>
+
+<div id="status">更新中...</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.tab-body').forEach(function(b){ b.classList.remove('active'); });
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ---- 監視タブ ----
+function createChart(id, label, color) {
+  var ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line', data: { labels: [], datasets: [{ label:label, data:[], borderColor:color, borderWidth:2, pointRadius:0, tension:0.3 }] },
+    options: { responsive:true, plugins:{ legend:{ labels:{ color:'#aaa' } } },
+      scales:{ x:{ ticks:{ color:'#888', maxTicksToLimit:10 }, grid:{ color:'#333' } },
+               y:{ ticks:{ color:'#888' }, grid:{ color:'#333' } } } }
+  });
+}
+var tempChart = createChart('tempChart', '温度 (C)', '#e94560');
+var humChart = createChart('humChart', '湿度 (%)', '#0f3460');
+
+async function updateMonitor() {
+  try {
+    var res = await Promise.all([
+      fetch('/api/recent').then(function(r){ return r.json(); }),
+      fetch('/api/stats').then(function(r){ return r.json(); }),
+      fetch('/api/system').then(function(r){ return r.json(); })
+    ]);
+    var data = res[0].reverse(), stats = res[1][0], sys = res[2];
+
+    if (data.length) {
+      var last = data[data.length-1];
+      document.getElementById('cur-temp').textContent = last.temperature_c;
+      document.getElementById('cur-hum').textContent = last.humidity_pct;
+      tempChart.data.labels = data.map(function(d){ return d.timestamp.substring(11,19); });
+      tempChart.data.datasets[0].data = data.map(function(d){ return d.temperature_c; });
+      tempChart.update();
+      humChart.data.labels = data.map(function(d){ return d.timestamp.substring(11,19); });
+      humChart.data.datasets[0].data = data.map(function(d){ return d.humidity_pct; });
+      humChart.update();
+    }
+    document.getElementById('count').textContent = stats.count;
+    document.getElementById('max-temp').textContent = stats.max_temp;
+    document.getElementById('min-temp').textContent = stats.min_temp;
+
+    document.getElementById('sys-cpu').textContent = sys.cpu;
+    document.getElementById('sys-mem').textContent = sys.memory;
+    document.getElementById('sys-disk').textContent = sys.disk;
+    document.getElementById('sys-temp').textContent = sys.cpu_temp;
+    document.getElementById('sys-load').textContent = sys.loadavg;
+    document.getElementById('sys-uptime').textContent = sys.uptime;
+
+    document.getElementById('status').textContent = '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
+  } catch(e) { document.getElementById('status').textContent = '更新エラー'; }
+}
+
+// ---- 統計タブ ----
+var histChart = null, scatterChart = null;
+
+async function updateStats() {
+  try {
+    var res = await Promise.all([
+      fetch('/api/recent').then(function(r){ return r.json(); }),
+      fetch('/api/stats').then(function(r){ return r.json(); })
+    ]);
+    var data = res[0], stats = res[1][0];
+
+    document.getElementById('s-count').textContent = stats.count;
+    document.getElementById('s-avg-temp').textContent = stats.avg_temp;
+    document.getElementById('s-min-temp').textContent = stats.min_temp;
+    document.getElementById('s-max-temp').textContent = stats.max_temp;
+    document.getElementById('s-avg-hum').textContent = stats.avg_hum;
+    document.getElementById('s-min-hum').textContent = stats.min_hum;
+    document.getElementById('s-max-hum').textContent = stats.max_hum;
+
+    if (data.length > 0) {
+      var temps = data.map(function(d){ return d.temperature_c; });
+      var hums = data.map(function(d){ return d.humidity_pct; });
+
+      if (histChart) histChart.destroy();
+      var ctx1 = document.getElementById('histChart').getContext('2d');
+      histChart = new Chart(ctx1, {
+        type: 'bar', data: { labels: temps.map(function(_,i){ return i+1; }), datasets: [{ label:'温度 (C)', data:temps, backgroundColor:'#e94560', borderColor:'#e94560', borderWidth:1 }] },
+        options: { responsive:true, plugins:{ title:{ display:true, text:'温度分布', color:'#aaa' }, legend:{ labels:{ color:'#aaa' } } },
+          scales:{ x:{ ticks:{ color:'#888' }, grid:{ color:'#333' } }, y:{ ticks:{ color:'#888' }, grid:{ color:'#333' } } } }
+      });
+
+      if (scatterChart) scatterChart.destroy();
+      var ctx2 = document.getElementById('scatterChart').getContext('2d');
+      var pts = temps.map(function(t,i){ return {x:t, y:hums[i]}; });
+      scatterChart = new Chart(ctx2, {
+        type: 'scatter', data: { datasets: [{ label:'温度 vs 湿度', data:pts, backgroundColor:'#0f3460', pointRadius:3 }] },
+        options: { responsive:true, plugins:{ title:{ display:true, text:'温度 vs 湿度', color:'#aaa' }, legend:{ labels:{ color:'#aaa' } } },
+          scales:{ x:{ title:{ display:true, text:'温度 (C)', color:'#aaa' }, ticks:{ color:'#888' }, grid:{ color:'#333' } },
+                   y:{ title:{ display:true, text:'湿度 (%)', color:'#aaa' }, ticks:{ color:'#888' }, grid:{ color:'#333' } } } }
+      });
+    }
+  } catch(e) {}
+}
+
+// ---- DB管理タブ ----
+async function queryData() {
+  var fr = document.getElementById('db-from').value;
+  var to = document.getElementById('db-to').value;
+  if (!fr || !to) { alert('開始と終了を指定してください'); return; }
+  var resp = await fetch('/api/data?from=' + fr + '&to=' + to).then(function(r){ return r.json(); });
+  if (resp.error) { document.getElementById('db-result').innerHTML = resp.error; return; }
+  var html = '<p>' + resp.length + ' 件</p><table class="db-table"><tr><th>ID</th><th>時刻</th><th>温度</th><th>湿度</th></tr>';
+  resp.forEach(function(r){ html += '<tr><td>'+r.id+'</td><td>'+r.timestamp+'</td><td>'+r.temperature_c+' C</td><td>'+r.humidity_pct+' %</td></tr>'; });
+  html += '</table>';
+  document.getElementById('db-result').innerHTML = html;
+}
+
+async function deleteData() {
+  var fr = document.getElementById('db-from').value;
+  var to = document.getElementById('db-to').value;
+  if (!fr || !to) { alert('開始と終了を指定してください'); return; }
+  if (!confirm('期間 ' + fr + ' 〜 ' + to + ' のデータを削除しますか？')) return;
+  var resp = await fetch('/api/delete', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({from:fr, to:to})
+  }).then(function(r){ return r.json(); });
+  document.getElementById('db-result').innerHTML = resp.deleted + ' 件削除しました';
+}
+</script>
+<script>
+updateMonitor(); updateStats();
+setInterval(function(){ updateMonitor(); updateStats(); }, 5000);
+</script>
+</body>
+</html>

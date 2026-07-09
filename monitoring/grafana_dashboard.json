@@ -1,0 +1,109 @@
+{
+  "dashboard": {
+    "title": "DHT22 温湿度監視",
+    "uid": "dht22-monitor",
+    "panels": [
+      {
+        "title": "温度 (最新)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+            "type": "json",
+            "source": "url",
+            "url": "http://localhost:8080/api/recent",
+            "root_selector": ".[0]",
+            "columns": [{"selector": "temperature_c", "text": "温度", "type": "number"}]
+          }
+        ],
+        "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto"},
+        "fieldConfig": {"defaults": {"unit": "celsius", "thresholds": {"steps": [{"color": "blue", "value": null}, {"color": "orange", "value": 30}, {"color": "red", "value": 35}]}}}
+      },
+      {
+        "title": "湿度 (最新)",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+            "type": "json",
+            "source": "url",
+            "url": "http://localhost:8080/api/recent",
+            "root_selector": ".[0]",
+            "columns": [{"selector": "humidity_pct", "text": "湿度", "type": "number"}]
+          }
+        ],
+        "options": {"colorMode": "value", "graphMode": "area", "textMode": "auto"},
+        "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "blue", "value": null}, {"color": "green", "value": 40}, {"color": "orange", "value": 70}, {"color": "red", "value": 80}]}}}
+      },
+      {
+        "title": "データ件数",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+            "type": "json",
+            "source": "url",
+            "url": "http://localhost:8080/api/stats",
+            "root_selector": ".[0]",
+            "columns": [{"selector": "COUNT(*)", "text": "件数", "type": "number"}]
+          }
+        ],
+        "options": {"colorMode": "value", "graphMode": "none", "textMode": "auto"},
+        "fieldConfig": {"defaults": {}}
+      },
+      {
+        "title": "温度 時系列",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 24, "h": 10},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+            "type": "json",
+            "source": "url",
+            "url": "http://localhost:8080/api/recent",
+            "root_selector": "",
+            "columns": [
+              {"selector": "timestamp", "text": "時刻", "type": "timestamp", "format": "yyyy-MM-dd HH:mm:ss"},
+              {"selector": "temperature_c", "text": "温度", "type": "number"}
+            ]
+          }
+        ],
+        "fieldConfig": {"defaults": {"unit": "celsius"}}
+      },
+      {
+        "title": "湿度 時系列",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 14, "w": 24, "h": 10},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+            "type": "json",
+            "source": "url",
+            "url": "http://localhost:8080/api/recent",
+            "root_selector": "",
+            "columns": [
+              {"selector": "timestamp", "text": "時刻", "type": "timestamp", "format": "yyyy-MM-dd HH:mm:ss"},
+              {"selector": "humidity_pct", "text": "湿度", "type": "number"}
+            ]
+          }
+        ],
+        "fieldConfig": {"defaults": {"unit": "percent"}}
+      }
+    ],
+    "refresh": "5s",
+    "time": {"from": "now-15m", "to": "now"},
+    "timepicker": {},
+    "schemaVersion": 38,
+    "version": 0
+  },
+  "overwrite": true,
+  "folderUid": ""
+}
